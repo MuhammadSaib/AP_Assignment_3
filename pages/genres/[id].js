@@ -1,5 +1,3 @@
-import path from 'path';
-import fs from 'fs';
 import Link from 'next/link';
 
 export default function GenreDetailPage({ genre, movies }) {
@@ -17,11 +15,11 @@ export default function GenreDetailPage({ genre, movies }) {
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {movies.map(movie => (
             <li
-              key={movie.id}
+              key={movie._id}
               className="bg-white p-4 rounded-lg shadow hover:shadow-md transition"
             >
               <Link
-                href={`/movies/${movie.id}`}
+                href={`/movies/${movie._id}`}
                 className="text-lg font-semibold text-purple-700 hover:underline"
               >
                 <strong>{movie.title}</strong> ({movie.releaseYear})
@@ -35,13 +33,31 @@ export default function GenreDetailPage({ genre, movies }) {
 }
 
 export async function getStaticPaths() {
-  const filePath = path.join(process.cwd(), 'data', 'movies.json');
-  const jsonData = fs.readFileSync(filePath, 'utf-8');
-  const data = JSON.parse(jsonData);
+  const genreResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/genres`);
+  
+  if (!genreResponse.ok) {
+    throw new Error('Failed to fetch genres');
+  }
 
-  const paths = data.genres.map(genre => ({
-    params: { id: genre.id.toString() }
-  }));
+  const genres = await genreResponse.json();
+
+  // Log the structure of the genres response
+  console.log('Fetched genres:', genres);
+
+  // Check if genres is an array
+  if (!Array.isArray(genres)) {
+    throw new Error('Genres data is not an array');
+  }
+
+  const paths = genres.map(genre => {
+    console.log('Genre:', genre); 
+    if (!genre._id) {
+      throw new Error(`Genre missing _id: ${JSON.stringify(genre)}`);
+    }
+    return {
+      params: { id: genre._id.toString() } 
+    };
+  });
 
   return {
     paths,
@@ -49,15 +65,19 @@ export async function getStaticPaths() {
   };
 }
 
-export async function getStaticProps({ params }) {
-  const filePath = path.join(process.cwd(), 'data', 'movies.json');
-  const jsonData = fs.readFileSync(filePath, 'utf-8');
-  const data = JSON.parse(jsonData);
 
-  const genre = data.genres.find(g => g.id.toString() === params.id);
+
+export async function getStaticProps({ params }) {
+  const genreResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/genres`);
+  const genres = await genreResponse.json();
+
+  const genre = genres.find(g => g._id.toString() === params.id);
   if (!genre) return { notFound: true };
 
-  const filteredMovies = data.movies.filter(m => m.genreId === genre.id);
+  const movieResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movies`);
+  const movies = await movieResponse.json();
+
+  const filteredMovies = movies.filter(m => m.genreId === genre.id);
 
   return {
     props: {

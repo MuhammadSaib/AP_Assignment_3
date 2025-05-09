@@ -8,7 +8,7 @@ export default function GenresPage({ genres }) {
         {genres.map(genre => (
           <li key={genre.id} className="bg-white p-4 rounded-lg shadow hover:bg-purple-50 transition">
             <Link
-              href={`/genres/${genre.id}`}
+              href={`/genres/${genre._id}`}
               className="text-lg font-semibold text-purple-700 hover:underline"
             >
               {genre.name}
@@ -24,7 +24,7 @@ export async function getServerSideProps() {
   try {
     // Fetch genres from the API
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/genres`);
-    
+    console.log("Genres response", response)
     if (!response.ok) {
       throw new Error('Failed to fetch genres');
     }

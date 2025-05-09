@@ -1,5 +1,4 @@
-import path from 'path';
-import fs from 'fs';
+import { useRouter } from 'next/router';
 import Link from 'next/link';
 
 export default function MovieDetails({ movie, directorName }) {
@@ -21,7 +20,7 @@ export default function MovieDetails({ movie, directorName }) {
         </p>
         <p className="mb-2">
           <span className="font-semibold text-gray-700">🎬 Director:</span>{' '}
-          <Link href={`/movies/${movie.id}/director`} className="text-blue-600 hover:underline">
+          <Link href={`/movies/${movie._id}/director`} className="text-blue-600 hover:underline">
             {directorName}
           </Link>
         </p>
@@ -35,12 +34,11 @@ export default function MovieDetails({ movie, directorName }) {
 }
 
 export async function getStaticPaths() {
-  const filePath = path.join(process.cwd(), 'data', 'movies.json');
-  const jsonData = fs.readFileSync(filePath, 'utf-8');
-  const data = JSON.parse(jsonData);
+  const res = await fetch('http://localhost:3000/api/movies');
+  const data = await res.json();
 
-  const paths = data.movies.map(movie => ({   
-    params: { id: movie.id.toString() }
+  const paths = data.map((movie) => ({
+    params: { id: movie._id.toString() },
   }));
 
   return {
@@ -50,18 +48,26 @@ export async function getStaticPaths() {
 }
 
 export async function getStaticProps({ params }) {
-  const filePath = path.join(process.cwd(), 'data', 'movies.json');
-  const jsonData = fs.readFileSync(filePath, 'utf-8');
-  const data = JSON.parse(jsonData);
+  const movieRes = await fetch(`http://localhost:3000/api/movies/${params.id}`);
+  if (!movieRes.ok) {
+    console.error(`Failed to fetch movie data: ${movieRes.statusText}`);
+    return { notFound: true }; // Return not found if movie is not found
+  }
 
-  const movie = data.movies.find(m => m.id.toString() === params.id);
+  const movie = await movieRes.json();
 
   if (!movie) {
     return { notFound: true };
   }
+  const directorRes = await fetch(`http://localhost:3000/api/directors/${movie.director._id}`);
+  if (!directorRes.ok) {
+    console.error(`Error fetching director data: ${directorRes.statusText}`);
+    return { props: { movie, directorName: 'Unknown' } };
+  }
 
-  const director = data.directors.find(d => d.id === movie.directorId);
-  const directorName = director ? director.name : 'Unknown';
+  const director = await directorRes.json();
+  console.log("Director \n", director)
+  const directorName = director ? director.director.name : 'Unknown';
 
   return {
     props: {

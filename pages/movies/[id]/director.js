@@ -1,8 +1,9 @@
-import path from 'path';
-import fs from 'fs';
+import Link from 'next/link';
 
-export default function DirectorPage({ director }) {
-  if (!director) return <p className="text-center text-red-500 mt-10">Director not found.</p>;
+export default function DirectorPage({ director, movieId }) {
+  if (!director) {
+    return <p className="text-center text-red-500 mt-10">Director not found.</p>;
+  }
 
   return (
     <div className="p-8 bg-gray-100 min-h-screen">
@@ -14,12 +15,12 @@ export default function DirectorPage({ director }) {
         <p className="text-gray-600">{director.biography}</p>
 
         <div className="mt-6">
-          <a
-            href={`/movies/${director.id}`}
+          <Link
+            href={`/movies/${movieId}`}  // Linking back to the movie page
             className="inline-block mt-4 text-sm text-blue-500 hover:underline"
           >
             ← Back to Movie
-          </a>
+          </Link>
         </div>
       </div>
     </div>
@@ -27,12 +28,21 @@ export default function DirectorPage({ director }) {
 }
 
 export async function getStaticPaths() {
-  const filePath = path.join(process.cwd(), 'data', 'movies.json');
-  const jsonData = fs.readFileSync(filePath, 'utf-8');
-  const data = JSON.parse(jsonData);
+  // Fetch all movies to get the movie IDs
+  const movieRes = await fetch('http://localhost:3000/api/movies'); 
+  const movies = await movieRes.json();
 
-  const paths = data.movies.map(movie => ({
-    params: { id: movie.id.toString() }
+  // Check if movies data is available
+  if (!movies || movies.length === 0) {
+    return {
+      paths: [],
+      fallback: 'blocking',
+    };
+  }
+
+  // Generate paths for each movie with movie_id as the dynamic parameter
+  const paths = movies.map(movie => ({
+    params: { id: movie._id.toString() },  // Ensure _id is properly converted to string
   }));
 
   return {
@@ -41,20 +51,40 @@ export async function getStaticPaths() {
   };
 }
 
+// Fetch the director data for the movie
 export async function getStaticProps({ params }) {
-  const filePath = path.join(process.cwd(), 'data', 'movies.json');
-  const jsonData = fs.readFileSync(filePath, 'utf-8');
-  const data = JSON.parse(jsonData);
+  try {
+    // Fetch movie data based on the movie_id (params.id)
+    const movieRes = await fetch(`http://localhost:3000/api/movies/${params.id}`);
+    if (!movieRes.ok) {
+      throw new Error('Movie not found');
+    }
+    
+    const movie = await movieRes.json();
+    const directorId = movie.director._id;  // Get the director ID from the movie
 
-  const movie = data.movies.find(m => m.id.toString() === params.id);
-  if (!movie) return { notFound: true };
+    // Fetch the director data based on the directorId
+    const directorRes = await fetch(`http://localhost:3000/api/directors/${directorId}`);
+    if (!directorRes.ok) {
+      throw new Error('Director not found');
+    }
 
-  const director = data.directors.find(d => d.id === movie.directorId);
-
-  return {
-    props: {
-      director: director || null
-    },
-    revalidate: 60,
-  };
+    const director = await directorRes.json();
+    console.log("Director", director)
+    return {
+      props: {
+        director: director.director || null,
+        movieId: params.id,  // Pass the movie ID for the back link
+      },
+      revalidate: 60,
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      props: {
+        director: null,
+        movieId: params.id,  // Pass the movie ID even if there's an error
+      },
+    };
+  }
 }
